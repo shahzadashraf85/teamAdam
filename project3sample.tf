@@ -125,14 +125,26 @@ resource "azurerm_windows_virtual_machine" "business_vm" {
 }
 
 # Load Balancer
-resource "azurerm_lb" "lb" {
-  name                = "banking-system-lb"
+resource "azurerm_lb" "frontend_lb" {
+  name                = "frontend-lb"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
   sku                 = "Standard"
   frontend_ip_configuration {
     name                 = "frontend"
     subnet_id            = azurerm_subnet.web_subnet.id
+    private_ip_address_allocation = "Dynamic"
+  }
+}
+
+resource "azurerm_lb" "backend_lb" {
+  name                = "backend-lb"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  sku                 = "Standard"
+  frontend_ip_configuration {
+    name                 = "backend"
+    subnet_id            = azurerm_subnet.business_subnet.id
     private_ip_address_allocation = "Dynamic"
   }
 }
