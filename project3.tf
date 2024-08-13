@@ -5,7 +5,7 @@ provider "azurerm" {
 # Resource Group
 resource "azurerm_resource_group" "rg" {
   name     = "banking-system-rg"
-  location = "East US"
+  location = "Canada Central"
 }
 
 # Virtual Network
@@ -66,7 +66,7 @@ resource "azurerm_network_interface" "web_nic" {
 }
 
 resource "azurerm_network_interface" "business_nic" {
-  count               = 3
+  count               = 1
   name                = "business-nic-${count.index}"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
@@ -150,7 +150,7 @@ resource "azurerm_lb" "backend_lb" {
 }
 
 # SQL Servers
-resource "azurerm_sql_server" "primary_sql" {
+resource "azurerm_mssql_server" "primary_sql" {
   name                         = "primarysqlserver"
   resource_group_name          = azurerm_resource_group.rg.name
   location                     = azurerm_resource_group.rg.location
@@ -159,38 +159,20 @@ resource "azurerm_sql_server" "primary_sql" {
   administrator_login_password = "P@ssw0rd1234"
 }
 
-resource "azurerm_sql_server" "secondary_sql" {
-  name                         = "secondarysqlserver"
-  resource_group_name          = azurerm_resource_group.rg.name
-  location                     = azurerm_resource_group.rg.location
-  version                      = "12.0"
-  administrator_login          = "adminuser"
-  administrator_login_password = "P@ssw0rd1234"
-}
-
 # SQL Databases
-resource "azurerm_sql_database" "primary_db" {
+resource "azurerm_mssql_database" "primary_db" {
   name                = "primarydb"
-  resource_group_name = azurerm_resource_group.rg.name
-  location            = azurerm_resource_group.rg.location
-  server_name         = azurerm_sql_server.primary_sql.name
+  server_id           = azurerm_mssql_server.primary_sql.id
   sku_name            = "S0"
 }
 
-resource "azurerm_sql_database" "secondary_db" {
-  name                = "secondarydb"
-  resource_group_name = azurerm_resource_group.rg.name
-  location            = azurerm_resource_group.rg.location
-  server_name         = azurerm_sql_server.secondary_sql.name
-  sku_name            = "S0"
-}
 
 # Azure Bastion
 resource "azurerm_bastion_host" "bastion" {
   name                = "banking-system-bastion"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
-  dns_name            = "bastion-${azurerm_resource_group.rg.name}.eastus.azure.com"
+
   ip_configuration {
     name                 = "configuration"
     subnet_id            = azurerm_subnet.bastion_subnet.id
