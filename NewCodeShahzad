@@ -1,0 +1,260 @@
+provider "azurerm" {
+  features {}
+}
+
+variable "resource_group_name" {
+  type        = string
+  description = "The name of the resource group."
+  default     = "banking-system-rg"
+}
+
+variable "location" {
+  type        = string
+  description = "The Azure region where the resources will be deployed."
+  default     = "canada central"
+}
+
+variable "vnet_name" {
+  type        = string
+  description = "The name of the virtual network."
+  default     = "banking-system-vnet"
+}
+
+variable "vnet_address_space" {
+  type        = list(string)
+  description = "The address space for the virtual network."
+  default     = ["10.0.0.0/16"]
+}
+
+variable "subnets" {
+  type = map(object({
+    name             = string
+    address_prefixes = list(string)
+  }))
+  description = "A map of subnet configurations."
+  default = {
+    web = {
+      name             = "web-subnet"
+      address_prefixes = ["10.0.1.0/24"]
+    }
+    business = {
+      name             = "business-subnet"
+      address_prefixes = ["10.0.2.0/24"]
+    }
+    data = {
+      name             = "data-subnet"
+      address_prefixes = ["10.0.3.0/24"]
+    }
+    bastion = {
+      name             = "AzureBastionSubnet"
+      address_prefixes = ["10.0.4.0/24"]
+    }
+  }
+}
+
+variable "admin_username" {
+  type        = string
+  description = "The administrator username for virtual machines."
+  default     = "adminuser"
+}
+
+variable "admin_password" {
+  type        = string
+  description = "The administrator password for virtual machines."
+  default     = "P@ssw0rd1234"
+}
+
+# Resource Group
+resource "azurerm_resource_group" "rg" {
+  name     = var.resource_group_name
+  location = var.location
+}
+
+# Virtual Network
+resource "azurerm_virtual_network" "vnet" {
+  name                = var.vnet_name
+  address_space       = var.vnet_address_space
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+}
+
+# Subnets
+resource "azurerm_subnet" "web_subnet" {
+  name                 = var.subnets.web.name
+  resource_group_name  = azurerm_resource_group.rg.name
+  virtual_network_name = azurerm_virtual_network.vnet.name
+  address_prefixes     = var.subnets.web.address_prefixes
+}
+
+resource "azurerm_subnet" "business_subnet" {
+  name                 = var.subnets.business.name
+  resource_group_name  = azurerm_resource_group.rg.name
+  virtual_network_name = azurerm_virtual_network.vnet.name
+  address_prefixes     = var.subnets.business.address_prefixes
+}
+
+resource "azurerm_subnet" "data_subnet" {
+  name                 = var.subnets.data.name
+  resource_group_name  = azurerm_resource_group.rg.name
+  virtual_network_name = azurerm_virtual_network.vnet.name
+  address_prefixes     = var.subnets.data.address_prefixes
+}
+
+resource "azurerm_subnet" "bastion_subnet" {
+  name                 = var.subnets.bastion.name
+  resource_group_name  = azurerm_resource_group.rg.name
+  virtual_network_name = azurerm_virtual_network.vnet.name
+  address_prefixes     = var.subnets.bastion.address_prefixes
+}
+
+# Network Security Group
+resource "azurerm_network_security_group" "nsg" {
+  name                = "banking-system-nsg"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+}
+
+# Network Interface
+resource "azurerm_network_interface" "web_nic" {
+  count               = 3
+  name                = "web-nic-${count.index}"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+
+  ip_configuration {
+    name                          = "web-nic-ipconfig"
+    subnet_id                     = azurerm_subnet.web_subnet.id
+    private_ip_address_allocation = "Dynamic"
+  }
+}
+
+resource "azurerm_network_interface" "business_nic" {
+  count               = 1
+  name                = "business-nic-${count.index}"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+
+  ip_configuration {
+    name                          = "business-nic-ipconfig"
+    subnet_id                     = azurerm_subnet.business_subnet.id
+    private_ip_address_allocation = "Dynamic"
+  }
+}
+
+# Virtual Machines
+resource "azurerm_windows_virtual_machine" "web_vm" {
+  count               = 1
+  name                = "web-vm-${count.index}"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  size                = "Standard_DS1_v2"
+  admin_username      = var.admin_username
+  admin_password      = var.admin_password
+
+  network_interface_ids = [
+    azurerm_network_interface.web_nic[count.index].id,
+  ]
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  source_image_reference {
+    publisher = "MicrosoftWindowsServer"
+    offer     = "WindowsServer"
+    sku       = "2019-Datacenter"
+    version   = "latest"
+  }
+}
+
+resource "azurerm_windows_virtual_machine" "business_vm" {
+  count               = 1
+  name                = "business-vm-${count.index}"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  size                = "Standard_DS1_v2"
+  admin_username      = var.admin_username
+  admin_password      = var.admin_password
+
+  network_interface_ids = [
+    azurerm_network_interface.business_nic[count.index].id,
+  ]
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  source_image_reference {
+    publisher = "MicrosoftWindowsServer"
+    offer     = "WindowsServer"
+    sku       = "2019-Datacenter"
+    version   = "latest"
+  }
+}
+
+# Load Balancer
+resource "azurerm_lb" "frontend_lb" {
+  name                = "frontend-lb"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  sku                 = "Standard"
+
+  frontend_ip_configuration {
+    name                          = "frontend"
+    subnet_id                     = azurerm_subnet.web_subnet.id
+    private_ip_address_allocation = "Dynamic"
+  }
+}
+
+resource "azurerm_lb" "backend_lb" {
+  name                = "backend-lb"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  sku                 = "Standard"
+
+  frontend_ip_configuration {
+    name                          = "backend"
+    subnet_id                     = azurerm_subnet.business_subnet.id
+    private_ip_address_allocation = "Dynamic"
+  }
+}
+
+# SQL Servers
+resource "azurerm_mssql_server" "primary_sql" {
+  name                         = "primarysqlserver"
+  resource_group_name          = azurerm_resource_group.rg.name
+  location                     = azurerm_resource_group.rg.location
+  version                      = "12.0"
+  administrator_login          = var.admin_username
+  administrator_login_password = var.admin_password
+}
+
+# SQL Databases
+resource "azurerm_mssql_database" "primary_db" {
+  name      = "primarydb"
+  server_id = azurerm_mssql_server.primary_sql.id
+  sku_name  = "S0"
+}
+
+# Azure Bastion
+resource "azurerm_bastion_host" "bastion" {
+  name                = "banking-system-bastion"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+
+  ip_configuration {
+    name                 = "configuration"
+    subnet_id            = azurerm_subnet.bastion_subnet.id
+    public_ip_address_id = azurerm_public_ip.bastion_public_ip.id
+  }
+}
+
+resource "azurerm_public_ip" "bastion_public_ip" {
+  name                = "bastion-public-ip"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  allocation_method   = "Static"
+  sku                 = "Standard"
+}
