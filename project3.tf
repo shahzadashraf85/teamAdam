@@ -5,7 +5,7 @@ provider "azurerm" {
 # Resource Group
 resource "azurerm_resource_group" "rg" {
   name     = "banking-system-rg"
-  location = "Canada Central"
+  location = "canada central"
 }
 
 # Virtual Network
@@ -79,7 +79,7 @@ resource "azurerm_network_interface" "business_nic" {
 
 # Virtual Machines
 resource "azurerm_windows_virtual_machine" "web_vm" {
-  count               = 3
+  count               = 1
   name                = "web-vm-${count.index}"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
@@ -102,7 +102,7 @@ resource "azurerm_windows_virtual_machine" "web_vm" {
 }
 
 resource "azurerm_windows_virtual_machine" "business_vm" {
-  count               = 3
+  count               = 1
   name                = "business-vm-${count.index}"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
